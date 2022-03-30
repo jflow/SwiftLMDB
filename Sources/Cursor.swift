@@ -8,7 +8,7 @@
 import Foundation
 import LMDB
 
-public class Cursor {
+public class Cursor: Sequence {
     
     internal private(set) var handle: OpaquePointer?
     
@@ -23,10 +23,6 @@ public class Cursor {
     }
     
     deinit {
-        if let transactionHandle = mdb_cursor_txn(handle) {
-            mdb_txn_commit(transactionHandle)
-        }
-        
         mdb_cursor_close(handle)
     }
     

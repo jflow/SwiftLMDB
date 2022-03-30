@@ -353,7 +353,7 @@ extension Database {
 
     }
 
-    internal func cursor(withTransaction transaction: Transaction) throws -> Cursor {
+    public func cursor(withTransaction transaction: Transaction) throws -> Cursor {
         return Cursor(database: self, transaction: transaction)
     }
 
