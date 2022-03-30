@@ -9,6 +9,8 @@
 import Foundation
 import LMDB
 
+public typealias SwiftLMDBTransaction = Transaction
+
 /// All read and write operations on the database happen inside a Transaction.
 public struct Transaction {
     
