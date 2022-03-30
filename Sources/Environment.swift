@@ -101,3 +101,19 @@ public class Environment {
     }
     
 }
+
+extension Environment {
+    
+    public func read(transactionBlock: (Transaction) throws -> Transaction.Action) throws {
+        try Transaction(environment: self, flags: .readOnly) { transaction -> Transaction.Action in
+            try transactionBlock(transaction)
+        }
+    }
+
+    public func write(transactionBlock: (Transaction) throws -> Transaction.Action) throws {
+        try Transaction(environment: self) { transaction -> Transaction.Action in
+            try transactionBlock(transaction)
+        }
+    }
+
+}

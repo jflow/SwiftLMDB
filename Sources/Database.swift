@@ -247,5 +247,114 @@ public class Database {
         let txn = try Transaction(environment: environment, flags: [.readOnly])
         return Cursor(database: self, transaction: txn)
     }
-    
+
+}
+
+extension Database {
+
+    /// Returns a value from the database instantiated as type `V` for a key of type `K`.
+    /// - parameter type: A type conforming to `DataConvertible` that you want to be instantiated with the value from the database.
+    /// - parameter key: A key conforming to `DataConvertible` for which the value will be looked up.
+    /// - parameter transaction: A Transaction to execute the get in
+    /// - returns: Returns the value as an instance of type `V` or `nil` if no value exists for the key or the type could not be instatiated with the data.
+    /// - note: You can always use `Foundation.Data` as the type. In such case, `nil` will only be returned if there is no value for the key.
+    /// - throws: an error if operation fails. See `LMDBError`.
+    public func get<V: DataConvertible, K: DataConvertible>(type: V.Type, forKey key: K, withTransaction transaction: Transaction) throws -> V? {
+
+        var keyData = key.asData
+
+        return try keyData.withUnsafeMutableBytes { keyBufferPointer -> V? in
+
+            let keyPointer = keyBufferPointer.baseAddress
+            var keyVal = MDB_val(mv_size: keyBufferPointer.count, mv_data: keyPointer)
+
+            // The database will manage the memory for the returned value.
+            // http://104.237.133.194/doc/group__mdb.html#ga8bf10cd91d3f3a83a34d04ce6b07992d
+            var dataVal = MDB_val()
+
+            var getStatus: Int32 = 0
+
+            getStatus = mdb_get(transaction.handle, handle, &keyVal, &dataVal)
+
+            guard getStatus != MDB_NOTFOUND else {
+                return nil
+            }
+
+            guard getStatus == 0 else {
+                throw LMDBError(returnCode: getStatus)
+            }
+
+            let data = Data(bytes: dataVal.mv_data, count: dataVal.mv_size)
+            return V(data: data)
+        }
+
+    }
+
+    /// Inserts a value into the database.
+    /// - parameter value: The value to be put into the database. The value must conform to `DataConvertible`.
+    /// - parameter key: The key which the data will be associated with. The key must conform to `DataConvertible`. Passing an empty key will cause an error to be thrown.
+    /// - parameter transaction: A Transaction to execute the get in
+    /// - parameter flags: An optional set of flags that modify the behavior if the put operation. Default is [] (empty set).
+    /// - throws: an error if operation fails. See `LMDBError`.
+    public func put<V: DataConvertible, K: DataConvertible>(value: V, forKey key: K, flags: PutFlags = [], withTransaction transaction: Transaction) throws {
+
+        var keyData = key.asData
+        var valueData = value.asData
+
+        try keyData.withUnsafeMutableBytes { keyBufferPointer in
+
+            let keyPointer = keyBufferPointer.baseAddress
+            var keyVal = MDB_val(mv_size: keyBufferPointer.count, mv_data: keyPointer)
+
+            try valueData.withUnsafeMutableBytes { valueBufferPointer in
+
+                let valuePointer = valueBufferPointer.baseAddress
+                var valueVal = MDB_val(mv_size: valueBufferPointer.count, mv_data: valuePointer)
+
+                var putStatus: Int32 = 0
+
+                putStatus = mdb_put(transaction.handle, self.handle, &keyVal, &valueVal, UInt32(flags.rawValue))
+
+                guard putStatus == 0 else {
+                    throw LMDBError(returnCode: putStatus)
+                }
+
+            }
+        }
+
+    }
+
+    /// Check if a value exists for the given key.
+    /// - parameter key: The key to check for.
+    /// - parameter transaction: A Transaction to execute the get in
+    /// - returns: `true` if the database contains a value for the key. `false` otherwise.
+    /// - throws: an error if operation fails. See `LMDBError`.
+    public func exists<K: DataConvertible>(key: K, withTransaction transaction: Transaction) throws -> Bool {
+        return try get(type: Data.self, forKey: key, withTransaction: transaction) != nil
+    }
+
+    /// Deletes a value from the database.
+    /// - parameter key: The key identifying the database entry to be deleted. The key must conform to `DataConvertible`. Passing an empty key will cause an error to be thrown.
+    /// - parameter transaction: A Transaction to execute the get in
+    /// - throws: an error if operation fails. See `LMDBError`.
+    public func deleteValue<K: DataConvertible>(forKey key: K, withTransaction transaction: Transaction) throws {
+
+        var keyData = key.asData
+
+        keyData.withUnsafeMutableBytes { keyBufferPointer in
+
+            let keyPointer = keyBufferPointer.baseAddress
+            var keyVal = MDB_val(mv_size: keyBufferPointer.count, mv_data: keyPointer)
+
+            // TODO: shouldn't we check the status of this and throw if it failed?
+            mdb_del(transaction.handle, handle, &keyVal, nil)
+
+        }
+
+    }
+
+    internal func cursor(withTransaction transaction: Transaction) throws -> Cursor {
+        return Cursor(database: self, transaction: transaction)
+    }
+
 }
